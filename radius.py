@@ -45,5 +45,126 @@ EXAMPLES
         radius.py acct update 192.168.1.100 192.168.2.103 38:BC:1A:A0:58:6A 1024 1023 360 1234567890abc user0 115.29.203.202 testing123
 """)
 
+def check_ip(ipaddr):
+    addr=ipaddr.strip().split('.') 
+    if len(addr) != 4: 
+            #print >> sys.stderr, 'The ipaddr %s is invalid' %ipaddr
+            sys.exit(100)
+    for i in range(4):
+            try:
+                    addr[i]=int(addr[i]) 
+            except:
+                      #print >> sys.stderr, 'The ipaddr %s is invalid' %ipaddr
+                    sys.exit(100)
+            if addr[i]<=255 and addr[i]>=0:   
+                    pass
+            else:
+		    #print >> sys.stderr, 'The ipaddr %s is invalid' %ipaddr
+                    sys.exit(100)
+            i+=1
 
-Usage()
+def SendPacket(srv, req):
+    try:
+        return srv.SendPacket(req)
+    except pyrad.client.Timeout:
+        #print "RADIUS server does not reply"
+        print -1
+    except socket.error, error:
+        #print "Network error: " + error[1]
+        #sys.exit(1)
+        print -1
+
+def main(argv):
+
+    acct_list = ['start', 'update', 'stop']
+
+    if len(argv) == 7 and argv[0] == 'auth':
+        # argv[1] nasip
+        # argv[2] userip
+        # argv[3] username
+        # argv[4] password
+        # argv[5] radius addr
+        # argv[6] radius secret
+        check_ip(argv[1])
+        check_ip(argv[2])
+        srv=Client(server=argv[5],
+               secret=argv[6],
+               dict=Dictionary("/usr/local/share/freeradius/dictionary"))
+
+        req=srv.CreateAuthPacket(code=pyrad.packet.AccessRequest,
+                                 User_Name=argv[3])
+
+        req["User-Password"]      = req.PwCrypt(argv[4])
+        req["NAS-IP-Address"]     = argv[1]
+        #req["NAS-Port"]           = 0
+        #req["Service-Type"]       = "Login-User"
+        #req["NAS-Identifier"]     = "trillian"
+        #req["Called-Station-Id"]  = "00-04-5F-00-0F-D1"
+        #req["Calling-Station-Id"] = "00-01-24-80-B3-9C"
+        req["Framed-IP-Address"]  = argv[2]
+
+        reply = SendPacket(srv, req)
+
+        if reply.code==pyrad.packet.AccessAccept:
+            if reply:
+                print reply['Acct-Interim-Interval'][0]
+            else:
+                print 0
+        else:
+            print -2
+    elif len(argv) == 12 and argv[0] == 'acct' and argv[1] in acct_list:
+        # argv[1] auth type
+        # argv[2] nasip
+        # argv[3] userip
+        # argv[4] usermac
+        # argv[5] inputotect
+        # argv[6] outputotect
+        # argv[7] acctsessiontime
+        # argv[8] acctsessionid
+        # argv[9] username
+        # argv[10] radius addr
+        # argv[11] radius secret
+        srv=Client(server=argv[10],
+                   secret=argv[11],
+                   dict=Dictionary("/usr/local/share/freeradius/dictionary"))
+
+        req=srv.CreateAcctPacket(User_Name=argv[9])
+
+        if argv[1] == 'start':
+            req["NAS-IP-Address"]=argv[2]
+            #req["NAS-Port"]=0
+            #req["NAS-Identifier"]="trillian"
+            #req["Called-Station-Id"]="00-04-5F-00-0F-D1"
+            req["Calling-Station-Id"]=argv[4]
+            req["Framed-IP-Address"]=argv[3]
+            req["Acct-Session-Id"]=argv[8]
+            req["Acct-Status-Type"]="Start"
+        elif argv[1] == 'update':
+            req["NAS-IP-Address"]=argv[2]
+            req["Acct-Input-Octets"] = int(argv[5])
+            req["Acct-Output-Octets"] = int(argv[6])
+            req["Acct-Session-Time"] = int(argv[7])
+            req["Calling-Station-Id"]=argv[4]
+            req["Framed-IP-Address"]=argv[3]
+            req["Acct-Session-Id"]=argv[8]
+            req["Acct-Status-Type"]="Interim-Update"
+        else:
+            req["NAS-IP-Address"]=argv[2]
+            req["Acct-Input-Octets"] = int(argv[5])
+            req["Acct-Output-Octets"] = int(argv[6])
+            req["Acct-Session-Time"] = int(argv[7])
+            req["Calling-Station-Id"]=argv[4]
+            req["Framed-IP-Address"]=argv[3]
+            req["Acct-Session-Id"]=argv[8]
+            req["Acct-Status-Type"]="Stop"
+            req["Acct-Terminate-Cause"] = "User-Request"
+
+        SendPacket(srv, req)
+        print 0
+    else:
+        Usage()
+
+
+if __name__ == '__main__':
+    main(sys.argv[1:])
+
