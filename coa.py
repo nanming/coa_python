@@ -5,36 +5,49 @@ import select
 from pyrad import dictionary, packet, server
 
 COAPORT=3799
+COASECRET='testing123'
+
+# COA Error-Cause
+#201    Residual Session Context Removed
+#202    Invalid EAP Packet (Ignored)
+#401    Unsupported Attribute
+#402    Missing Attribute
+#403    NAS Identification Mismatch
+#404    Invalid Request
+#405    Unsupported Service
+#406    Unsupported Extension
+#501    Administratively Prohibited
+#502    Request Not Routable (Proxy)
+#503    Session Context Not Found
+#504    Session Context Not Removable
+#505    Other Proxy Processing Error
+#506    Resources Unavailable
+#507    Request Initiated
+
 
 class CoaServer(server.Server):
 
     def __init__(self, addresses=[], authport=1812, acctport=1813, hosts=None,
             dict=None):
+
+        server.Server.__init__(self, addresses, authport, acctport, hosts, dict)
         self.sockfds = []
+        self._realsockfds = []
 
-    def _HandleAuthPacket(self, pkt):
-        server.Server._HandleAuthPacket(self, pkt)
+    def _HandleCoaPacket(self, pkt):
+        #server.Server._HandleAuthPacket(self, pkt)
+        #pkt.secret = self.hosts[pkt.source[0]].secret
 
-        print "Received an authentication request"
-        print "Attributes: "
-        for attr in pkt.keys():
-            print "%s: %s" % (attr, pkt[attr])
-        print
-
-        reply=self.CreateReplyPacket(pkt)
-        reply.code=packet.AccessAccept
-        self.SendReplyPacket(pkt.fd, reply)
-
-    def _HandleAcctPacket(self, pkt):
-        server.Server._HandleAcctPacket(self, pkt)
-
-        print "Received an accounting request"
-        print "Attributes: "
-        for attr in pkt.keys():
-            print "%s: %s" % (attr, pkt[attr])
-        print
+        #print "Received an coarequest"
+        #print "Attributes: "
+        #for attr in pkt.keys():
+            #print "%s: %s" % (attr, pkt[attr])
+        #print
 
         reply=self.CreateReplyPacket(pkt)
+        reply.code=packet.DisconnectACK
+        #reply.secret = 'testing123'
+        reply['Error-Cause'] = 201
         self.SendReplyPacket(pkt.fd, reply)
 
     def BindToAddress(self, coaport):
@@ -52,8 +65,27 @@ class CoaServer(server.Server):
         self.sockfds.append(sockfd)
         #self.acctfds.append(acctfd)
 
-    def _ProcessInput(self, fdo):
-        print'ProcessInput'
+    def CreateCoaPacket(self, **args):
+         return packet.Packet(dict=self.dict, secret=COASECRET, **args)
+
+    def _ProcessInput(self, fd):
+        """Process available data.
+        If this packet should be dropped instead of processed a
+        PacketError exception should be raised. The main loop will
+        drop the packet and log the reason.
+
+        This function calls either HandleAuthPacket() or
+        HandleAcctPacket() depending on which socket is being
+        processed.
+
+        :param  fd: socket to read packet from
+        :type   fd: socket class instance
+        """
+        if fd.fileno() in self._realsockfds:
+            pkt = self._GrabPacket(lambda data, s=self:
+                    s.CreateCoaPacket(packet=data), fd)
+            self._HandleCoaPacket(pkt)
+
 
     def _PrepareSockets(self):
         """Prepare all sockets to receive packets.
@@ -62,7 +94,7 @@ class CoaServer(server.Server):
             self._fdmap[fd.fileno()] = fd
             self._poll.register(fd.fileno(),
                 select.POLLIN | select.POLLPRI | select.POLLERR)
-        self._reasockfds = list(map(lambda x: x.fileno(), self.sockfds))
+        self._realsockfds = list(map(lambda x: x.fileno(), self.sockfds))
 
     def Run(self):
         """Main loop.
@@ -90,8 +122,8 @@ class CoaServer(server.Server):
 
 
 srv=CoaServer(dict=dictionary.Dictionary("/usr/local/share/freeradius/dictionary"))
-#srv.hosts["127.0.0.1"]=server.RemoteHost("127.0.0.1",
-                                         #"testing123",
-                                         #"localhost")
+srv.hosts["127.0.0.1"]=server.RemoteHost("127.0.0.1",
+                                         "testing123",
+                                         "localhost")
 srv.BindToAddress(COAPORT)
 srv.Run()
