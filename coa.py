@@ -128,7 +128,7 @@ class CoaServer(server.Server):
 #srv.BindToAddress(COAPORT)
 #srv.Run()
 
-def funzioneDemo():
+def ForkFunc():
 
     #fout = open('/tmp/demone.log', 'w')
     #while True:
@@ -144,7 +144,7 @@ def funzioneDemo():
     srv.Run()
 
 
-def createDaemon():
+def CreateDaemon():
 
     try:
         if os.fork() > 0: os._exit(0)
@@ -172,11 +172,11 @@ def createDaemon():
     os.dup2(so.fileno(), sys.stdout.fileno())
     os.dup2(se.fileno(), sys.stderr.fileno())
 
-    funzioneDemo() # function demo
+    ForkFunc() # function demo
 
 if __name__ == '__main__': 
-    print platform.system()
+
     if platform.system() == "Linux":
-        createDaemon()
+        CreateDaemon()
     else:
         os._exit(0)
