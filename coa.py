@@ -2,6 +2,8 @@
 
 import socket
 import select 
+import time, platform 
+import os, sys
 from pyrad import dictionary, packet, server
 
 COAPORT=3799
@@ -119,11 +121,62 @@ class CoaServer(server.Server):
                 else:
                     logger.error('Unexpected event in server main loop')
 
+#srv=CoaServer(dict=dictionary.Dictionary("/usr/local/share/freeradius/dictionary"))
+#srv.hosts["127.0.0.1"]=server.RemoteHost("127.0.0.1",
+                                         #"testing123",
+                                         #"localhost")
+#srv.BindToAddress(COAPORT)
+#srv.Run()
+
+def funzioneDemo():
+
+    #fout = open('/tmp/demone.log', 'w')
+    #while True:
+        #fout.write(time.ctime()+'\n')
+        #fout.flush()
+        #time.sleep(2)
+    #fout.close()
+    srv=CoaServer(dict=dictionary.Dictionary("/usr/local/share/freeradius/dictionary"))
+    srv.hosts["127.0.0.1"]=server.RemoteHost("127.0.0.1",
+                                             "testing123",
+                                             "localhost")
+    srv.BindToAddress(COAPORT)
+    srv.Run()
 
 
-srv=CoaServer(dict=dictionary.Dictionary("/usr/local/share/freeradius/dictionary"))
-srv.hosts["127.0.0.1"]=server.RemoteHost("127.0.0.1",
-                                         "testing123",
-                                         "localhost")
-srv.BindToAddress(COAPORT)
-srv.Run()
+def createDaemon():
+
+    try:
+        if os.fork() > 0: os._exit(0)
+    except OSError, error:
+        print 'fork #1 failed: %d (%s)' % (error.errno, error.strerror)
+        os._exit(1)    
+    os.chdir('/')
+    os.setsid()
+    os.umask(0)
+    try:
+        pid = os.fork()
+        if pid > 0:
+            print 'Daemon PID %d' % pid
+            os._exit(0)
+    except OSError, error:
+        print 'fork #2 failed: %d (%s)' % (error.errno, error.strerror)
+        os._exit(1)
+
+    sys.stdout.flush()
+    sys.stderr.flush()
+    si = file("/dev/null", 'r')
+    so = file("/dev/null", 'a+')
+    se = file("/dev/null", 'a+', 0)
+    os.dup2(si.fileno(), sys.stdin.fileno())
+    os.dup2(so.fileno(), sys.stdout.fileno())
+    os.dup2(se.fileno(), sys.stderr.fileno())
+
+    funzioneDemo() # function demo
+
+if __name__ == '__main__': 
+    print platform.system()
+    if platform.system() == "Linux":
+        createDaemon()
+    else:
+        os._exit(0)
