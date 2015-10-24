@@ -2,12 +2,13 @@
 
 import socket
 import select 
+import json
 import time, platform 
 import os, sys
 from pyrad import dictionary, packet, server
 
 COAPORT=3799
-COASECRET='testing123'
+RADIUS_CONFIG_FILE='/etc/radius_config'
 
 # COA Error-Cause
 #201    Residual Session Context Removed
@@ -68,7 +69,9 @@ class CoaServer(server.Server):
         #self.acctfds.append(acctfd)
 
     def CreateCoaPacket(self, **args):
-         return packet.Packet(dict=self.dict, secret=COASECRET, **args)
+        print 'testing123456'
+        print COA_SECRET
+        return packet.Packet(dict=self.dict, secret=COA_SECRET, **args)
 
     def _ProcessInput(self, fd):
         """Process available data.
@@ -121,28 +124,29 @@ class CoaServer(server.Server):
                 else:
                     logger.error('Unexpected event in server main loop')
 
+
 #srv=CoaServer(dict=dictionary.Dictionary("/usr/local/share/freeradius/dictionary"))
 #srv.hosts["127.0.0.1"]=server.RemoteHost("127.0.0.1",
-                                         #"testing123",
-                                         #"localhost")
+                                         ##"testing123",
+                                         ##"localhost")
 #srv.BindToAddress(COAPORT)
 #srv.Run()
 
 def ForkFunc():
 
-    #fout = open('/tmp/demone.log', 'w')
-    #while True:
-        #fout.write(time.ctime()+'\n')
-        #fout.flush()
-        #time.sleep(2)
-    #fout.close()
+    global COA_SECRET
+
+    rad_conf = file("/etc/radius_config")
+    fd_radius = json.load(rad_conf)
+    COA_SECRET = str(fd_radius['RADIUS_COA_SECRET'])
+    rad_conf.close()
+
     srv=CoaServer(dict=dictionary.Dictionary("/usr/local/share/freeradius/dictionary"))
-    srv.hosts["127.0.0.1"]=server.RemoteHost("127.0.0.1",
-                                             "testing123",
-                                             "localhost")
+    #srv.hosts["127.0.0.1"]=server.RemoteHost("127.0.0.1",
+                                             #"testing123",
+                                             #"localhost")
     srv.BindToAddress(COAPORT)
     srv.Run()
-
 
 def CreateDaemon():
 
