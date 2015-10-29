@@ -5,6 +5,7 @@ import select
 import json
 import time, platform 
 import os, sys
+import httplib
 from pyrad import dictionary, packet, server
 
 COAPORT=3799
@@ -46,11 +47,24 @@ class CoaServer(server.Server):
         #for attr in pkt.keys():
             #print "%s: %s" % (attr, pkt[attr])
         #print
+        url = 'http://127.0.0.1/api/radius.html?sessid='+pkt["Acct-Session-Id"]
+        httpclient = httplib.HTTPConnection('localhost', 80, False)
+
+        httpclient.request(method="GET", url=url)
+        response = httpclient.getresponse()
+
+        if response.reason == 'OK':
+            result = response.read()
+        else:
+            result = '0'
+
+        if result == '1':
+            reply['Error-Cause'] = 201
+        else:
+            reply['Error-Cause'] = 503
 
         reply=self.CreateReplyPacket(pkt)
         reply.code=packet.DisconnectACK
-        #reply.secret = 'testing123'
-        reply['Error-Cause'] = 201
         self.SendReplyPacket(pkt.fd, reply)
 
     def BindToAddress(self, coaport):
