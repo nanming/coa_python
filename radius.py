@@ -4,6 +4,7 @@ import random, socket, sys
 import pyrad.packet
 from pyrad.client import Client
 from pyrad.dictionary import Dictionary
+import time
 def Usage():
     print(
 """
@@ -49,18 +50,21 @@ def check_ip(ipaddr):
     addr=ipaddr.strip().split('.') 
     if len(addr) != 4: 
             #print >> sys.stderr, 'The ipaddr %s is invalid' %ipaddr
-            sys.exit(100)
+            #sys.exit(100)
+            print -1
     for i in range(4):
             try:
                     addr[i]=int(addr[i]) 
             except:
                       #print >> sys.stderr, 'The ipaddr %s is invalid' %ipaddr
-                    sys.exit(100)
+                    #sys.exit(100)
+                    print -1
             if addr[i]<=255 and addr[i]>=0:   
                     pass
             else:
 		    #print >> sys.stderr, 'The ipaddr %s is invalid' %ipaddr
-                    sys.exit(100)
+                    #sys.exit(100)
+                    print -1
             i+=1
 
 def SendPacket(srv, req):
@@ -139,6 +143,9 @@ def main(argv):
             req["Framed-IP-Address"]=argv[3]
             req["Acct-Session-Id"]=argv[8]
             req["Acct-Status-Type"]="Start"
+            print ''.join(argv[4].split(':'))+str(time.time())
+            #print argv[4]+str(time.time())
+            SendPacket(srv, req)
         elif argv[1] == 'update':
             req["NAS-IP-Address"]=argv[2]
             req["Acct-Input-Octets"] = int(argv[5])
@@ -148,6 +155,8 @@ def main(argv):
             req["Framed-IP-Address"]=argv[3]
             req["Acct-Session-Id"]=argv[8]
             req["Acct-Status-Type"]="Interim-Update"
+            SendPacket(srv, req)
+            print 0
         else:
             req["NAS-IP-Address"]=argv[2]
             req["Acct-Input-Octets"] = int(argv[5])
@@ -158,9 +167,9 @@ def main(argv):
             req["Acct-Session-Id"]=argv[8]
             req["Acct-Status-Type"]="Stop"
             req["Acct-Terminate-Cause"] = "User-Request"
+            SendPacket(srv, req)
+            print 0
 
-        SendPacket(srv, req)
-        print 0
     else:
         Usage()
 
