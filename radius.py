@@ -141,9 +141,10 @@ def main(argv):
             #req["Called-Station-Id"]="00-04-5F-00-0F-D1"
             req["Calling-Station-Id"]=argv[4]
             req["Framed-IP-Address"]=argv[3]
-            req["Acct-Session-Id"]=argv[8]
+            acctSessionId = ''.join(argv[4].split(':'))+str(time.time())
+            req["Acct-Session-Id"]=acctSessionId
             req["Acct-Status-Type"]="Start"
-            print ''.join(argv[4].split(':'))+str(time.time())
+            print acctSessionId
             #print argv[4]+str(time.time())
             SendPacket(srv, req)
         elif argv[1] == 'update':
