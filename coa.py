@@ -8,7 +8,7 @@ import os, sys
 import httplib
 from pyrad import dictionary, packet, server
 
-COAPORT=3799
+COAPORT=13000
 RADIUS_CONFIG_FILE='/etc/radius_config'
 
 # COA Error-Cause
@@ -47,11 +47,16 @@ class CoaServer(server.Server):
         #for attr in pkt.keys():
             #print "%s: %s" % (attr, pkt[attr])
         #print
-        url = 'http://127.0.0.1/api/radius.html?sessid='+pkt["Acct-Session-Id"]
+        reply=self.CreateReplyPacket(pkt)
+        url = 'http://127.0.0.1/api/radius.html?sessid='+pkt["Acct-Session-Id"][0]
         httpclient = httplib.HTTPConnection('localhost', 80, False)
 
         httpclient.request(method="GET", url=url)
         response = httpclient.getresponse()
+	print response.status
+	print response.reason
+	print pkt["Acct-Session-Id"][0]
+	print url
 
         if response.reason == 'OK':
             result = response.read()
@@ -63,7 +68,6 @@ class CoaServer(server.Server):
         else:
             reply['Error-Cause'] = 503
 
-        reply=self.CreateReplyPacket(pkt)
         reply.code=packet.DisconnectACK
         self.SendReplyPacket(pkt.fd, reply)
 
@@ -83,8 +87,8 @@ class CoaServer(server.Server):
         #self.acctfds.append(acctfd)
 
     def CreateCoaPacket(self, **args):
-        print 'testing123456'
-        print COA_SECRET
+        #print COA_SECRET
+        #return packet.Packet(dict=self.dict, secret=COA_SECRET, **args)
         return packet.Packet(dict=self.dict, secret=COA_SECRET, **args)
 
     def _ProcessInput(self, fd):
@@ -156,9 +160,9 @@ def ForkFunc():
     rad_conf.close()
 
     srv=CoaServer(dict=dictionary.Dictionary("/usr/local/share/freeradius/dictionary"))
-    #srv.hosts["127.0.0.1"]=server.RemoteHost("127.0.0.1",
-                                             #"testing123",
-                                             #"localhost")
+    ##srv.hosts["127.0.0.1"]=server.RemoteHost("127.0.0.1",
+                                             ##"testing123",
+                                             ##"localhost")
     srv.BindToAddress(COAPORT)
     srv.Run()
 
