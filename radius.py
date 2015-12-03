@@ -5,6 +5,7 @@ import pyrad.packet
 from pyrad.client import Client
 from pyrad.dictionary import Dictionary
 import time
+
 def Usage():
     print(
 """
@@ -50,21 +51,18 @@ def check_ip(ipaddr):
     addr=ipaddr.strip().split('.') 
     if len(addr) != 4: 
             #print >> sys.stderr, 'The ipaddr %s is invalid' %ipaddr
-            #sys.exit(100)
             print -1
     for i in range(4):
             try:
                     addr[i]=int(addr[i]) 
             except:
                       #print >> sys.stderr, 'The ipaddr %s is invalid' %ipaddr
-                    #sys.exit(100)
-                    print -1
+		    print -1
             if addr[i]<=255 and addr[i]>=0:   
                     pass
             else:
 		    #print >> sys.stderr, 'The ipaddr %s is invalid' %ipaddr
-                    #sys.exit(100)
-                    print -1
+		    print -1
             i+=1
 
 def SendPacket(srv, req):
@@ -141,12 +139,11 @@ def main(argv):
             #req["Called-Station-Id"]="00-04-5F-00-0F-D1"
             req["Calling-Station-Id"]=argv[4]
             req["Framed-IP-Address"]=argv[3]
-            acctSessionId = ''.join(argv[4].split(':'))+str(time.time())
+	    acctSessionId = ''.join(argv[4].split(':'))+str(time.time())
             req["Acct-Session-Id"]=acctSessionId
             req["Acct-Status-Type"]="Start"
-            print acctSessionId
-            #print argv[4]+str(time.time())
-            SendPacket(srv, req)
+	    SendPacket(srv, req)
+	    print  acctSessionId
         elif argv[1] == 'update':
             req["NAS-IP-Address"]=argv[2]
             req["Acct-Input-Octets"] = int(argv[5])
@@ -156,7 +153,7 @@ def main(argv):
             req["Framed-IP-Address"]=argv[3]
             req["Acct-Session-Id"]=argv[8]
             req["Acct-Status-Type"]="Interim-Update"
-            SendPacket(srv, req)
+	    SendPacket(srv, req)
             print 0
         else:
             req["NAS-IP-Address"]=argv[2]
@@ -168,7 +165,7 @@ def main(argv):
             req["Acct-Session-Id"]=argv[8]
             req["Acct-Status-Type"]="Stop"
             req["Acct-Terminate-Cause"] = "User-Request"
-            SendPacket(srv, req)
+	    SendPacket(srv, req)
             print 0
 
     else:
