@@ -1,0 +1,5 @@
+{
+"RADIUS_COA_SECRET":"testing123",
+"RADIUS_SECRET":"testing123",
+"RADIUS_PORT":"1812"
+}
