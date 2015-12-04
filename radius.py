@@ -4,7 +4,9 @@ import random, socket, sys
 import pyrad.packet
 from pyrad.client import Client
 from pyrad.dictionary import Dictionary
-import time
+import time, platform, os
+import threading
+import SocketServer
 
 def Usage():
     print(
@@ -50,128 +52,199 @@ EXAMPLES
 def check_ip(ipaddr):
     addr=ipaddr.strip().split('.') 
     if len(addr) != 4: 
-            #print >> sys.stderr, 'The ipaddr %s is invalid' %ipaddr
-            print -1
+            #return >> sys.stderr, 'The ipaddr %s is invalid' %ipaddr
+            return -1
     for i in range(4):
             try:
                     addr[i]=int(addr[i]) 
             except:
-                      #print >> sys.stderr, 'The ipaddr %s is invalid' %ipaddr
-		    print -1
+                      #return >> sys.stderr, 'The ipaddr %s is invalid' %ipaddr
+		    return -1
             if addr[i]<=255 and addr[i]>=0:   
                     pass
             else:
-		    #print >> sys.stderr, 'The ipaddr %s is invalid' %ipaddr
-		    print -1
+		    #return >> sys.stderr, 'The ipaddr %s is invalid' %ipaddr
+		    return -1
             i+=1
 
 def SendPacket(srv, req):
     try:
         return srv.SendPacket(req)
     except pyrad.client.Timeout:
-        #print "RADIUS server does not reply"
-        print -1
+        #return "RADIUS server does not reply"
+        return -1
     except socket.error, error:
-        #print "Network error: " + error[1]
+        #return "Network error: " + error[1]
         #sys.exit(1)
-        print -1
+        return -1
 
-def main(argv):
+def DealData(data):
 
     acct_list = ['start', 'update', 'stop']
 
-    if len(argv) == 7 and argv[0] == 'auth':
-        # argv[1] nasip
-        # argv[2] userip
-        # argv[3] username
-        # argv[4] password
-        # argv[5] radius addr
-        # argv[6] radius secret
-        check_ip(argv[1])
-        check_ip(argv[2])
-        srv=Client(server=argv[5],
-               secret=argv[6],
-               dict=Dictionary("/usr/local/share/freeradius/dictionary"))
+    if len(data) == 7 and data[0] == 'auth':
+        # data[1] nasip
+        # data[2] userip
+        # data[3] username
+        # data[4] password
+        # data[5] radius addr
+        # data[6] radius secret
+        check_ip(data[1])
+        check_ip(data[2])
+        srv=Client(server=data[5],
+               secret=data[6], dict=dict_global)
+               #dict=Dictionary("/usr/local/share/freeradius/dictionary"))
 
         req=srv.CreateAuthPacket(code=pyrad.packet.AccessRequest,
-                                 User_Name=argv[3])
+                                 User_Name=data[3])
 
-        req["User-Password"]      = req.PwCrypt(argv[4])
-        req["NAS-IP-Address"]     = argv[1]
+        req["User-Password"]      = req.PwCrypt(data[4])
+        req["NAS-IP-Address"]     = data[1]
         #req["NAS-Port"]           = 0
         #req["Service-Type"]       = "Login-User"
         #req["NAS-Identifier"]     = "trillian"
         #req["Called-Station-Id"]  = "00-04-5F-00-0F-D1"
         #req["Calling-Station-Id"] = "00-01-24-80-B3-9C"
-        req["Framed-IP-Address"]  = argv[2]
+        req["Framed-IP-Address"]  = data[2]
 
         reply = SendPacket(srv, req)
 
+        if not reply:
+            return -1
         if reply.code==pyrad.packet.AccessAccept:
             if reply:
-                print reply['Acct-Interim-Interval'][0]
+                return reply['Acct-Interim-Interval'][0]
             else:
-                print 0
+                return 0
         else:
-            print -2
-    elif len(argv) == 12 and argv[0] == 'acct' and argv[1] in acct_list:
-        # argv[1] auth type
-        # argv[2] nasip
-        # argv[3] userip
-        # argv[4] usermac
-        # argv[5] inputotect
-        # argv[6] outputotect
-        # argv[7] acctsessiontime
-        # argv[8] acctsessionid
-        # argv[9] username
-        # argv[10] radius addr
-        # argv[11] radius secret
-        srv=Client(server=argv[10],
-                   secret=argv[11],
-                   dict=Dictionary("/usr/local/share/freeradius/dictionary"))
+            return -2
+    elif len(data) == 12 and data[0] == 'acct' and data[1] in acct_list:
+        # data[1] auth type
+        # data[2] nasip
+        # data[3] userip
+        # data[4] usermac
+        # data[5] inputotect
+        # data[6] outputotect
+        # data[7] acctsessiontime
+        # data[8] acctsessionid
+        # data[9] username
+        # data[10] radius addr
+        # data[11] radius secret
+        srv=Client(server=data[10],
+                   secret=data[11], dict=dict_global)
+                   #dict=Dictionary("/usr/local/share/freeradius/dictionary"))
 
-        req=srv.CreateAcctPacket(User_Name=argv[9])
+        req=srv.CreateAcctPacket(User_Name=data[9])
 
-        if argv[1] == 'start':
-            req["NAS-IP-Address"]=argv[2]
+        if data[1] == 'start':
+            req["NAS-IP-Address"]=data[2]
             #req["NAS-Port"]=0
             #req["NAS-Identifier"]="trillian"
             #req["Called-Station-Id"]="00-04-5F-00-0F-D1"
-            req["Calling-Station-Id"]=argv[4]
-            req["Framed-IP-Address"]=argv[3]
-	    acctSessionId = ''.join(argv[4].split(':'))+str(time.time())
+            req["Calling-Station-Id"]=data[4]
+            req["Framed-IP-Address"]=data[3]
+	    acctSessionId = ''.join(data[4].split(':'))+str(time.time())
             req["Acct-Session-Id"]=acctSessionId
             req["Acct-Status-Type"]="Start"
 	    SendPacket(srv, req)
-	    print  acctSessionId
-        elif argv[1] == 'update':
-            req["NAS-IP-Address"]=argv[2]
-            req["Acct-Input-Octets"] = int(argv[5])
-            req["Acct-Output-Octets"] = int(argv[6])
-            req["Acct-Session-Time"] = int(argv[7])
-            req["Calling-Station-Id"]=argv[4]
-            req["Framed-IP-Address"]=argv[3]
-            req["Acct-Session-Id"]=argv[8]
+	    return  acctSessionId
+        elif data[1] == 'update':
+            req["NAS-IP-Address"]=data[2]
+            req["Acct-Input-Octets"] = int(data[5])
+            req["Acct-Output-Octets"] = int(data[6])
+            req["Acct-Session-Time"] = int(data[7])
+            req["Calling-Station-Id"]=data[4]
+            req["Framed-IP-Address"]=data[3]
+            req["Acct-Session-Id"]=data[8]
             req["Acct-Status-Type"]="Interim-Update"
 	    SendPacket(srv, req)
-            print 0
+            return 0
         else:
-            req["NAS-IP-Address"]=argv[2]
-            req["Acct-Input-Octets"] = int(argv[5])
-            req["Acct-Output-Octets"] = int(argv[6])
-            req["Acct-Session-Time"] = int(argv[7])
-            req["Calling-Station-Id"]=argv[4]
-            req["Framed-IP-Address"]=argv[3]
-            req["Acct-Session-Id"]=argv[8]
+            req["NAS-IP-Address"]=data[2]
+            req["Acct-Input-Octets"] = int(data[5])
+            req["Acct-Output-Octets"] = int(data[6])
+            req["Acct-Session-Time"] = int(data[7])
+            req["Calling-Station-Id"]=data[4]
+            req["Framed-IP-Address"]=data[3]
+            req["Acct-Session-Id"]=data[8]
             req["Acct-Status-Type"]="Stop"
             req["Acct-Terminate-Cause"] = "User-Request"
 	    SendPacket(srv, req)
-            print 0
+            return 0
 
     else:
-        Usage()
+        #Usage()
+        return -3
 
 
-if __name__ == '__main__':
-    main(sys.argv[1:])
+class ThreadTCPRequestHandler(SocketServer.BaseRequestHandler):
 
+    def handle(self):
+        data = self.request.recv(1024)
+        data = data.split(' ')
+        data_len = data[0]
+        data = data[1:int(data_len)+1]
+        print data
+        result=DealData(data)
+        #cur_thread = threading.current_thread()
+        #response = "{}: {}".format(cur_thread.name, data)
+        response = "{}".format(result)
+        self.request.sendall(response)
+
+class ThreadeTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
+    pass
+
+def ForkFunc():
+    HOST, PORT = "0.0.0.0", 14000
+    global dict_global
+
+    dict_global = Dictionary("/usr/local/share/freeradius/dictionary")
+
+    server = ThreadeTCPServer((HOST, PORT), ThreadTCPRequestHandler)
+    #ip, port = server.server_address
+
+    server_thread = threading.Thread(target=server.serve_forever)
+    server_thread.daemon = True
+    server_thread.start()
+    server.serve_forever()
+
+    #server.shutdown()
+    #server.server_close()
+if __name__ == "__main__":
+    ForkFunc()
+#def CreateDaemon():
+
+    #try:
+        #if os.fork() > 0: os._exit(0)
+    #except OSError, error:
+        #return 'fork #1 failed: %d (%s)' % (error.errno, error.strerror)
+        #os._exit(1)    
+    #os.chdir('/')
+    #os.setsid()
+    #os.umask(0)
+    #try:
+        #pid = os.fork()
+        #if pid > 0:
+            #return 'Daemon PID %d' % pid
+            #os._exit(0)
+    #except OSError, error:
+        #return 'fork #2 failed: %d (%s)' % (error.errno, error.strerror)
+        #os._exit(1)
+
+    #sys.stdout.flush()
+    #sys.stderr.flush()
+    #si = file("/dev/null", 'r')
+    #so = file("/dev/null", 'a+')
+    #se = file("/dev/null", 'a+', 0)
+    #os.dup2(si.fileno(), sys.stdin.fileno())
+    #os.dup2(so.fileno(), sys.stdout.fileno())
+    #os.dup2(se.fileno(), sys.stderr.fileno())
+
+    #ForkFunc() # function demo
+
+#if __name__ == '__main__': 
+
+    #if platform.system() == "Linux":
+        #CreateDaemon()
+    #else:
+        #os._exit(0)
