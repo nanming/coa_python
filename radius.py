@@ -91,8 +91,12 @@ def DealData(data):
         # data[6] radius secret
         check_ip(data[1])
         check_ip(data[2])
+        #if dict_client.has_key(data[5]):
+            #srv = dict_client[data[5]]
+        #else:
         srv=Client(server=data[5],
-               secret=data[6], dict=dict_global)
+	   secret=data[6], dict=dictionary)
+        #    dict_client[data[5]] = srv
                #dict=Dictionary("/usr/local/share/freeradius/dictionary"))
 
         req=srv.CreateAuthPacket(code=pyrad.packet.AccessRequest,
@@ -109,7 +113,7 @@ def DealData(data):
 
         reply = SendPacket(srv, req)
 
-        if not reply:
+        if not isinstance(reply, pyrad.packet.Packet):
             return -1
         if reply.code==pyrad.packet.AccessAccept:
             if reply:
@@ -130,8 +134,12 @@ def DealData(data):
         # data[9] username
         # data[10] radius addr
         # data[11] radius secret
+        #if dict_client.has_key(data[10]):
+            #srv = dict_client[data[10]]
+        #else:
         srv=Client(server=data[10],
-                   secret=data[11], dict=dict_global)
+	       secret=data[11], dict=dictionary)
+            #dict_client[data[10]] = srv
                    #dict=Dictionary("/usr/local/share/freeradius/dictionary"))
 
         req=srv.CreateAcctPacket(User_Name=data[9])
@@ -170,37 +178,60 @@ def DealData(data):
             req["Acct-Status-Type"]="Stop"
             req["Acct-Terminate-Cause"] = "User-Request"
 	    SendPacket(srv, req)
-            return 0
+	    return 0
 
     else:
         #Usage()
         return -3
 
 
-class ThreadTCPRequestHandler(SocketServer.BaseRequestHandler):
+class ThreadTCPRequestHandler(SocketServer.StreamRequestHandler):
 
     def handle(self):
-        data = self.request.recv(1024)
+        data = self.rfile.readline().strip()
+	tmp = data.split(' ')
+	
+	if tmp[0] == 'value':
+            data = self.rfile.read(int(tmp[1]))
+	else:
+	    sys.exit(0)
+
+	cur_thread = threading.current_thread()
         data = data.split(' ')
-        data_len = data[0]
-        data = data[1:int(data_len)+1]
-        print data
-        result=DealData(data)
-        #cur_thread = threading.current_thread()
-        #response = "{}: {}".format(cur_thread.name, data)
-        response = "{}".format(result)
-        self.request.sendall(response)
+        length = len(data)
+	now = str(time.time())
+	#print cur_thread.name, data[0],data[1], len(data), now
+        if length != 7 and length != 12:
+            result = -3
+	#    print 'result=', result
+            #response = "{}".format(result)
+            self.wfile.write(str(result))
+        else:
+            result=DealData(data)
+	    #if "stop" in data:
+	    #    print cur_thread.name, 'result stop', result, now
+	    #else:
+	    #    print cur_thread.name, 'result=', result, now
+	    #print 
+            #response = "{}".format(str(result))
+            #self.request.sendall(response)
+	    if data[0] == "auth" or (data[0] == "acct" and data[1] == "start"):
+	      #print 'send result'
+              self.wfile.write(str(result))
 
 class ThreadeTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     pass
 
 def ForkFunc():
     HOST, PORT = "0.0.0.0", 14000
-    global dict_global
+    global dictionary
+    #global dict_client
+    dict_client = {}
 
-    dict_global = Dictionary("/usr/local/share/freeradius/dictionary")
+    dictionary = Dictionary("/usr/local/share/freeradius/dictionary")
 
     server = ThreadeTCPServer((HOST, PORT), ThreadTCPRequestHandler)
+    server.allow_reuse_address = True
     #ip, port = server.server_address
 
     server_thread = threading.Thread(target=server.serve_forever)
@@ -210,41 +241,41 @@ def ForkFunc():
 
     #server.shutdown()
     #server.server_close()
-if __name__ == "__main__":
-    ForkFunc()
-#def CreateDaemon():
+#if __name__ == "__main__":
+    #ForkFunc()
+def CreateDaemon():
 
-    #try:
-        #if os.fork() > 0: os._exit(0)
-    #except OSError, error:
-        #return 'fork #1 failed: %d (%s)' % (error.errno, error.strerror)
-        #os._exit(1)    
-    #os.chdir('/')
-    #os.setsid()
-    #os.umask(0)
-    #try:
-        #pid = os.fork()
-        #if pid > 0:
-            #return 'Daemon PID %d' % pid
-            #os._exit(0)
-    #except OSError, error:
-        #return 'fork #2 failed: %d (%s)' % (error.errno, error.strerror)
-        #os._exit(1)
+    try:
+        if os.fork() > 0: os._exit(0)
+    except OSError, error:
+        return 'fork #1 failed: %d (%s)' % (error.errno, error.strerror)
+        os._exit(1)    
+    os.chdir('/')
+    os.setsid()
+    os.umask(0)
+    try:
+        pid = os.fork()
+        if pid > 0:
+            return 'Daemon PID %d' % pid
+            os._exit(0)
+    except OSError, error:
+        return 'fork #2 failed: %d (%s)' % (error.errno, error.strerror)
+        os._exit(1)
 
-    #sys.stdout.flush()
-    #sys.stderr.flush()
-    #si = file("/dev/null", 'r')
-    #so = file("/dev/null", 'a+')
-    #se = file("/dev/null", 'a+', 0)
-    #os.dup2(si.fileno(), sys.stdin.fileno())
-    #os.dup2(so.fileno(), sys.stdout.fileno())
-    #os.dup2(se.fileno(), sys.stderr.fileno())
+    sys.stdout.flush()
+    sys.stderr.flush()
+    si = file("/dev/null", 'r')
+    so = file("/dev/null", 'a+')
+    se = file("/dev/null", 'a+', 0)
+    os.dup2(si.fileno(), sys.stdin.fileno())
+    os.dup2(so.fileno(), sys.stdout.fileno())
+    os.dup2(se.fileno(), sys.stderr.fileno())
 
-    #ForkFunc() # function demo
+    ForkFunc() # function demo
 
-#if __name__ == '__main__': 
+if __name__ == '__main__': 
 
-    #if platform.system() == "Linux":
-        #CreateDaemon()
-    #else:
-        #os._exit(0)
+    if platform.system() == "Linux":
+        CreateDaemon()
+    else:
+        os._exit(0)
